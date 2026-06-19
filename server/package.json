@@ -1,0 +1,28 @@
+{
+  "name": "google-chatops-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Google Chat Proactive Messenger — server (Chat SDK + gchat adapter)",
+  "scripts": {
+    "dev": "tsx watch --env-file=.env src/index.ts",
+    "start": "tsx --env-file=.env src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@chat-adapter/gchat": "^4.30.0",
+    "@chat-adapter/state-memory": "^4.30.0",
+    "@hono/node-server": "^2.0.4",
+    "better-sqlite3": "^12.10.0",
+    "chat": "^4.30.0",
+    "hono": "^4.12.23",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
+  }
+}
