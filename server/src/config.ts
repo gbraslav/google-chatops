@@ -26,6 +26,13 @@ export const config = {
   endpointUrl: process.env.GCHAT_ENDPOINT_URL,
   allowInsecureEvents: bool(process.env.ALLOW_INSECURE_EVENTS),
 
+  // Public base URL Google can reach for card image widgets (uploaded images are
+  // served at `${publicBaseUrl}/api/uploads/:id`). Point a tunnel at this server's
+  // port and set PUBLIC_BASE_URL to its https URL; falls back to the request origin
+  // (localhost) for local builder preview only.
+  publicBaseUrl: process.env.PUBLIC_BASE_URL,
+  uploadDir: process.env.UPLOAD_DIR ?? "./data/uploads",
+
   credentialsConfigured,
 } as const;
 

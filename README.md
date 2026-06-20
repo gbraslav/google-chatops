@@ -67,13 +67,26 @@ cd ../web && npm install
    gcloud iam service-accounts keys create credentials.json \
      --iam-account=chatops-app@<PROJECT_ID>.iam.gserviceaccount.com
    ```
-4. **Public HTTPS tunnel** to the server:
-   `cloudflared tunnel --url http://localhost:3978` (or `ngrok http 3978`).
+4. **Public HTTPS tunnel** to the server — use **ngrok**, a real reverse proxy that
+   returns your server's response to Google. This is **required for interactive cards**
+   (buttons, selection inputs); a one-way relay like smee can't return the response.
+   ```bash
+   ngrok http 3978        # note the https://<sub>.ngrok-free.dev URL it prints
+   ```
+   <!-- smee fallback — ONE-WAY relay. Fine for inbound messages (the bot replies
+        async via the REST API), but interactive cards will throw "unable to process
+        your request" because smee never returns your response to Google:
+        smee --url https://smee.io/5aVJadTAZwbKJkx --target http://localhost:3978/api/webhooks/gchat
+        (smee channels ignore the path, so the App URL is just the bare channel URL.) -->
 5. **Configure the Chat app** (console → *Google Chat API → Configuration*):
    - App name, avatar, description
    - **Interactive features → Receive 1:1 messages** (enable)
-   - **Connection settings → App URL** = `https://<tunnel>/api/webhooks/gchat`
-   - **Authentication Audience → Project Number**
+   - **HTTP endpoint URL** = `https://<sub>.ngrok-free.dev/api/webhooks/gchat`
+     — include the path; ngrok preserves it (smee ignored paths).
+   - **Authentication Audience:** a **Workspace add-on** app has no dropdown — Google
+     stamps the JWT `aud` = your HTTP endpoint URL, so set `GOOGLE_CHAT_PROJECT_NUMBER`
+     to that exact URL (see §3). A plain (non-add-on) Chat app instead offers
+     *Authentication Audience → App project number*.
    - Visibility → your test users
 
 ## 3. Configure env
@@ -86,12 +99,21 @@ cd ../web && cp .env.example .env
 Server `.env` essentials:
 ```bash
 GOOGLE_CHAT_CREDENTIALS={...service-account JSON on one line...}   # or GOOGLE_CHAT_USE_ADC=true
-GOOGLE_CHAT_PROJECT_NUMBER=1234567890
-GCHAT_ENDPOINT_URL=https://<tunnel>/api/webhooks/gchat
+# Expected inbound JWT audience (passed verbatim to verifyIdToken). Must match the
+# Chat console's HTTP endpoint URL byte-for-byte for an add-on app; a plain Chat app
+# uses the project number (e.g. 1234567890) instead.
+GOOGLE_CHAT_PROJECT_NUMBER=https://<sub>.ngrok-free.dev/api/webhooks/gchat
+GCHAT_ENDPOINT_URL=https://<sub>.ngrok-free.dev/api/webhooks/gchat
+PUBLIC_BASE_URL=https://<sub>.ngrok-free.dev     # bare host; serves uploaded card images
 WEB_APP_URL=http://localhost:5173
 WEB_ORIGIN=http://localhost:5173
 PORT=3978
 ```
+
+> `GCHAT_ENDPOINT_URL` and `GOOGLE_CHAT_PROJECT_NUMBER` carry the **full webhook
+> path**; `PUBLIC_BASE_URL` is the **bare host** (image URLs are built as
+> `${PUBLIC_BASE_URL}/api/uploads/:id`). Leave `PUBLIC_BASE_URL` unset for
+> local-only builder preview — uploaded images won't render in Chat.
 
 > **Note:** if `GOOGLE_CHAT_PROJECT_NUMBER` is set, inbound JWTs are **always
 > verified** (production behaviour). The dev `ALLOW_INSECURE_EVENTS=true` bypass
@@ -104,9 +126,12 @@ PORT=3978
 # terminal 1
 cd server && npm run dev          # http://localhost:3978
 
-# terminal 2 — tunnel; put the https URL into the Chat config App URL
-cloudflared tunnel --url http://localhost:3978
-smee --url https://smee.io/5aVJadTAZwbKJkx --target http://localhost:3978/api/webhooks/gchat
+# terminal 2 — ngrok tunnel. Paste the https URL (with /api/webhooks/gchat) into the
+# Chat config HTTP endpoint AND into .env (GOOGLE_CHAT_PROJECT_NUMBER, GCHAT_ENDPOINT_URL,
+# PUBLIC_BASE_URL), then restart the server.
+ngrok http 3978
+# smee fallback — one-way relay, messages only; interactive cards won't work:
+# smee --url https://smee.io/5aVJadTAZwbKJkx --target http://localhost:3978/api/webhooks/gchat
 
 # terminal 3
 cd web && npm run dev             # http://localhost:5173
@@ -183,7 +208,10 @@ curl -sX POST localhost:3978/api/send -H 'content-type: application/json' \
 - `/api/send` and `/api/recipients` are **unauthenticated** — add auth before any
   real deployment.
 - `ALLOW_INSECURE_EVENTS` is **dev-only**.
-- The tunnel URL rotates per restart — update the Chat config **App URL**.
+- Free **ngrok** URLs rotate per restart — re-paste into the Chat config **HTTP
+  endpoint URL** *and* `.env` (`GOOGLE_CHAT_PROJECT_NUMBER`, `GCHAT_ENDPOINT_URL`,
+  `PUBLIC_BASE_URL`), then restart the server. (A reserved ngrok domain avoids this.)
+  smee is fine for messages but **breaks interactive cards** — it's a one-way relay.
 - `state-memory` doesn't persist across restarts (SDK subscriptions/dedupe); the
   SQLite recipient registry does. Swap `@chat-adapter/state-pg` for production.
 - Stored space references are PII; `server/data/*.db` is git-ignored.

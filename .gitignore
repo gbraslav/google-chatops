@@ -4,6 +4,7 @@ dist/
 .env
 server/data/*.db
 server/data/*.db-*
+server/data/uploads/
 *credentials*.json
 sa-key.json
 *-key.json

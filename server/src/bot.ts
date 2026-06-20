@@ -21,6 +21,10 @@ import { store } from "./store/index.js";
 import { bus } from "./feed/bus.js";
 import { welcomeCard } from "./cards/welcomeCard.js";
 import { echoCard } from "./cards/echoCard.js";
+import { buildCard } from "./cards/buildCard.js";
+import { cardRegistry } from "./cards/registry.js";
+import { counterCard, approvalResultCard, applySelectionResult } from "./cards/presets.js";
+import type { CardSpec } from "./validation.js";
 
 export type Bot = Chat<{ gchat: ReturnType<typeof createGoogleChatAdapter> }>;
 
@@ -56,6 +60,27 @@ function createBot(): Bot | null {
  * Inbound DM handler (requirements §6.1 MESSAGE, §6.4, §6.5, §6.6, §8).
  * Runs only after the adapter has verified the request.
  */
+/**
+ * Pull selection/text form values out of an interaction event. Google puts them
+ * under commonEventObject.formInputs, keyed by each input's `name` (= our widget
+ * id), as { stringInputs: { value: [...] } }.
+ */
+function extractFormInputs(raw: unknown): Record<string, string> {
+  const formInputs = (raw as { commonEventObject?: { formInputs?: Record<string, unknown> } })
+    ?.commonEventObject?.formInputs;
+  const out: Record<string, string> = {};
+  if (formInputs && typeof formInputs === "object") {
+    for (const [name, input] of Object.entries(formInputs)) {
+      const values = (input as { stringInputs?: { value?: unknown } })?.stringInputs?.value;
+      if (Array.isArray(values)) {
+        const strings = values.filter((v): v is string => typeof v === "string");
+        if (strings.length) out[name] = strings.join(", ");
+      }
+    }
+  }
+  return out;
+}
+
 function registerHandlers(bot: Bot): void {
   bot.onDirectMessage(async (thread, message) => {
   try {
@@ -114,6 +139,63 @@ function registerHandlers(bot: Bot): void {
       /* swallow secondary failure */
     }
   }
+  });
+
+  // Interactive card buttons. The inbound interaction event is verified + routed
+  // by the adapter (see normalizeGchatRequest in index.ts for add-on payloads),
+  // then dispatched here by action id. Each handler edits the source card in place
+  // via its SentMessage handle (lost on restart → we log and no-op).
+  bot.onAction(async (e) => {
+    try {
+      const sent = cardRegistry.get(e.messageId);
+      if (!sent) {
+        console.warn(`onAction "${e.actionId}": no live handle for ${e.messageId} (restarted?)`);
+        return;
+      }
+
+      let next: CardSpec | undefined;
+      switch (e.actionId) {
+        case "counter:inc":
+          next = counterCard((Number.parseInt(e.value ?? "0", 10) || 0) + 1);
+          break;
+        case "counter:reset":
+          next = counterCard(0);
+          break;
+        case "approve":
+          next = approvalResultCard("approved", e.user?.fullName ?? "someone");
+          break;
+        case "reject":
+          next = approvalResultCard("rejected", e.user?.fullName ?? "someone");
+          break;
+        case "selection:submit": {
+          // Read the card's current form inputs and echo the choices back.
+          const stored = store.getCard(e.messageId);
+          if (!stored) {
+            console.warn(`onAction "selection:submit": no stored spec for ${e.messageId}`);
+            return;
+          }
+          const inputs = extractFormInputs(e.raw);
+          console.log("selection:submit inputs:", inputs);
+          next = applySelectionResult(JSON.parse(stored.specJson) as CardSpec, inputs);
+          break;
+        }
+        default:
+          // Selection inputs fire an onChange action (actionId = the input's id) on
+          // every change; ignore those quietly — we act on the explicit Submit.
+          console.debug(`onAction: ignoring "${e.actionId}" (no handler)`);
+          return;
+      }
+
+      await sent.edit(buildCard(next));
+      store.updateCardSpec(
+        e.messageId,
+        JSON.stringify(next),
+        next.title ?? "(untitled card)",
+        new Date().toISOString(),
+      );
+    } catch (err) {
+      console.error("onAction failed:", err);
+    }
   });
 }
 

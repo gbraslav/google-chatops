@@ -10,12 +10,15 @@ import { getRecipients, type Recipient } from "./api";
 import { RecipientPicker } from "./components/RecipientPicker";
 import { Composer } from "./components/Composer";
 import { IncomingFeed } from "./components/IncomingFeed";
+import { SentCards } from "./components/SentCards";
 
 export default function App() {
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Bumped after a card is sent so the SentCards list reloads.
+  const [cardsVersion, setCardsVersion] = useState(0);
 
   const loadRecipients = useCallback(async () => {
     setLoading(true);
@@ -60,7 +63,8 @@ export default function App() {
             onSelect={setSelectedKey}
             onRefresh={() => void loadRecipients()}
           />
-          <Composer recipient={selected} />
+          <Composer recipient={selected} onCardSent={() => setCardsVersion((v) => v + 1)} />
+          <SentCards version={cardsVersion} />
         </div>
         <div className="col">
           <IncomingFeed />
