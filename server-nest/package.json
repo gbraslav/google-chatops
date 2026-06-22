@@ -1,0 +1,34 @@
+{
+  "name": "google-chatops-server-nest",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Google Chat Proactive Messenger — NestJS (Express) parallel implementation",
+  "scripts": {
+    "build": "tsc",
+    "start": "node --env-file=.env dist/main.js",
+    "dev": "tsc --watch --preserveWatchOutput & node --env-file=.env --watch dist/main.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@chat-adapter/gchat": "^4.30.0",
+    "@chat-adapter/state-memory": "^4.30.0",
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/platform-express": "^11.0.0",
+    "better-sqlite3": "^12.10.0",
+    "chat": "^4.30.0",
+    "express": "^5.0.0",
+    "multer": "^2.0.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/express": "^5.0.0",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.3"
+  }
+}

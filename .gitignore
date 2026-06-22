@@ -5,6 +5,7 @@ dist/
 server/data/*.db
 server/data/*.db-*
 server/data/uploads/
+server-nest/data/
 *credentials*.json
 sa-key.json
 *-key.json
